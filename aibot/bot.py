@@ -279,6 +279,7 @@ class Agent(discord.Client):
             name="models", description="List all models currently available through Bifrost"
         )
         @app_commands.guild_only()
+        @app_commands.default_permissions(manage_guild=True)
         async def models(interaction: discord.Interaction):
             if not await check(interaction):
                 return
@@ -297,6 +298,7 @@ class Agent(discord.Client):
 
         @self.tree.command(name="model", description="Select a Bifrost model for this channel")
         @app_commands.guild_only()
+        @app_commands.default_permissions(manage_guild=True)
         async def model(interaction: discord.Interaction, name: str):
             if not await check(interaction):
                 return
@@ -330,6 +332,7 @@ class Agent(discord.Client):
         def switch(flag, description, on_text, off_text):
             @self.tree.command(name=flag, description=description)
             @app_commands.guild_only()
+            @app_commands.default_permissions(manage_guild=True)
             @app_commands.describe(enabled="Turn it on or off; leave empty to toggle")
             async def command(interaction: discord.Interaction, enabled: bool | None = None):
                 if not await check(interaction):
@@ -356,6 +359,7 @@ class Agent(discord.Client):
 
         @self.tree.command(name="admin", description="Set the server admin who runs Atlas here")
         @app_commands.guild_only()
+        @app_commands.default_permissions(manage_guild=True)
         @app_commands.describe(user="The server admin running Atlas; leave empty to show it")
         async def admin(interaction: discord.Interaction, user: discord.Member | None = None):
             if not await check(interaction):
@@ -380,8 +384,73 @@ class Agent(discord.Client):
                 log.warning("Host update failed: %s", type(exc).__name__)
                 await interaction.followup.send("Unable to update the host.", ephemeral=True)
 
+        # Lock changes are allowed from any enabled channel, so a lock can always be undone.
+        @self.tree.command(name="lock", description="Restrict Atlas to one channel in this server")
+        @app_commands.guild_only()
+        @app_commands.default_permissions(manage_guild=True)
+        @app_commands.describe(
+            channel="The channel ID to restrict Atlas to; leave empty to show it"
+        )
+        async def lock(interaction: discord.Interaction, channel: str | None = None):
+            if not await check(interaction):
+                return
+            await interaction.response.defer(ephemeral=True)
+            try:
+                if channel is None:
+                    locked = await self.history.lock(interaction.guild_id)
+                    text = (
+                        f"Atlas only reads and replies in <#{locked}>."
+                        if locked
+                        else "Atlas is not locked to a channel. Use /lock channel."
+                    )
+                    await interaction.followup.send(text, ephemeral=True)
+                    return
+                # Accept a raw ID or a pasted #channel mention.
+                raw = channel.strip().removeprefix("<#").removesuffix(">")
+                target = (
+                    interaction.guild.get_channel_or_thread(int(raw)) if raw.isdigit() else None
+                )
+                if target is None:
+                    await interaction.followup.send(
+                        "That is not a channel ID in this server.", ephemeral=True
+                    )
+                    return
+                if not allowed(self.config, interaction.guild_id, target.id):
+                    await interaction.followup.send(
+                        "That channel is not enabled for Atlas.", ephemeral=True
+                    )
+                    return
+                await self.history.set_lock(interaction.guild_id, target.id)
+                if self.context:
+                    await self.context.clear_others(interaction.guild_id, target.id)
+                await interaction.followup.send(
+                    f"Atlas now only reads and replies in <#{target.id}>; recent messages "
+                    "saved from other channels were cleared. Use /unlock to undo.",
+                    ephemeral=True,
+                )
+            except Exception as exc:
+                log.warning("Channel lock failed: %s", type(exc).__name__)
+                await interaction.followup.send("Unable to change the lock.", ephemeral=True)
+
+        @self.tree.command(name="unlock", description="Let Atlas read and reply in every channel")
+        @app_commands.guild_only()
+        @app_commands.default_permissions(manage_guild=True)
+        async def unlock(interaction: discord.Interaction):
+            if not await check(interaction):
+                return
+            await interaction.response.defer(ephemeral=True)
+            try:
+                await self.history.set_lock(interaction.guild_id, None)
+                await interaction.followup.send(
+                    "Atlas reads and replies in every enabled channel again.", ephemeral=True
+                )
+            except Exception as exc:
+                log.warning("Channel unlock failed: %s", type(exc).__name__)
+                await interaction.followup.send("Unable to change the lock.", ephemeral=True)
+
         @self.tree.command(name="clear", description="Clear this channel's saved bot conversation")
         @app_commands.guild_only()
+        @app_commands.default_permissions(manage_guild=True)
         async def clear(interaction: discord.Interaction):
             if not await check(interaction):
                 return
@@ -409,6 +478,10 @@ class Agent(discord.Client):
             or message.author.id == self.user.id
             or not allowed(self.config, getattr(message.guild, "id", None), message.channel.id)
         ):
+            return
+        # A locked server is neither read nor answered outside its one channel.
+        locked = await self.history.lock(message.guild.id)
+        if locked is not None and message.channel.id != locked:
             return
         automated = author_kind(message) is not None
         if automated and not self.config.automated_triggers:

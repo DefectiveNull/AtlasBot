@@ -132,6 +132,8 @@ async def test_runtime_surface_and_no_passive_ingestion(config):
             "model",
             "clear",
             "admin",
+            "lock",
+            "unlock",
             "nocontext",
             "nowebhooks",
             "short",

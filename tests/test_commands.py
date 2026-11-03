@@ -1,8 +1,10 @@
 import asyncio
+import time
 from dataclasses import replace
 from types import SimpleNamespace as NS
 from unittest.mock import AsyncMock
 
+import discord
 import pytest
 
 from aibot.bot import SHORT_NOTE, Agent
@@ -126,6 +128,8 @@ async def test_every_command_requires_admin(config):
     async with Agent(config) as bot:
         await bot.history.initialize()
         for command in bot.tree.get_commands():
+            # Discord hides and blocks the command for members without Manage Server.
+            assert command.default_permissions == discord.Permissions(manage_guild=True)
             denied = interaction(manage=False)
             options = {"name": "provider/model"} if command.name == "model" else {}
             await command.callback(denied, **options)
@@ -133,3 +137,57 @@ async def test_every_command_requires_admin(config):
             assert "Manage Server" in text, command.name
             denied.followup.send.assert_not_called()
         assert await bot.history.flags(1, 2) == frozenset()
+
+
+async def test_lock_restricts_reading_and_replying_to_one_channel(config):
+    async with Agent(replace(config, context_enabled=True)) as bot:
+        await bot.history.initialize()
+        bot._connection.user = NS(id=7)
+        bot._reply = AsyncMock()
+        channels = {2: NS(id=2), 3: NS(id=3)}
+        command = interaction()
+        command.guild = NS(get_channel_or_thread=channels.get)
+        assert "not locked" in await run(bot, "lock", command)
+        assert "not a channel" in await run(bot, "lock", command, channel="99")
+        assert "not a channel" in await run(bot, "lock", command, channel="general")
+        assert await bot.history.lock(1) is None
+        for guild, channel in [(1, 2), (1, 3), (9, 2)]:
+            await bot.context.add(guild, channel, 50, time.time(), "kept")
+        assert "<#3>" in await run(bot, "lock", command, channel="<#3>")
+        assert await bot.history.lock(1) == 3
+        # Locking clears saved context from the server's other channels only.
+        assert await bot.context.before(1, 2, 99) == []
+        assert await bot.context.before(1, 3, 99) == [(50, "kept")]
+        assert await bot.context.before(9, 2, 99) == [(50, "kept")]
+
+        elsewhere = message(1, "atlas hi")
+        await bot.on_message(elsewhere)
+        assert not bot.pending
+        assert await bot.context.before(1, 2, 99) == []
+        here = message(2, "atlas hi")
+        here.channel = NS(id=3, typing=Typing)
+        await bot.on_message(here)
+        await asyncio.gather(*bot.pending)
+        bot._reply.assert_awaited_once()
+
+        # Commands still work outside the locked channel, so the lock can be undone.
+        assert "every" in await run(bot, "unlock", interaction())
+        assert await bot.history.lock(1) is None
+        await bot.on_message(message(3, "atlas hi"))
+        await asyncio.gather(*bot.pending)
+        assert bot._reply.await_count == 2
+
+
+async def test_lock_rejects_channels_outside_the_allowlist(config):
+    async with Agent(replace(config, channel_ids=frozenset({2}))) as bot:
+        await bot.history.initialize()
+        command = interaction()
+        command.guild = NS(get_channel_or_thread={3: NS(id=3)}.get)
+        assert "not enabled" in await run(bot, "lock", command, channel="3")
+        assert await bot.history.lock(1) is None
+    async with Agent(config) as bot:
+        await bot.history.initialize()
+        await bot.history.set_lock(1, 3)
+    async with Agent(config) as bot:
+        await bot.history.initialize()
+        assert await bot.history.lock(1) == 3

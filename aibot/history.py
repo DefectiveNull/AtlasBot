@@ -13,6 +13,7 @@ class History:
         self.retention_seconds = retention_days * 86400
         self._lock = asyncio.Lock()
         self._flags: dict[tuple[int, int], frozenset[str]] = {}
+        self._locks: dict[int, int | None] = {}
 
     async def _run(self, function):
         async with self._lock:
@@ -27,7 +28,7 @@ class History:
         def create(db):
             # A fresh fork must never silently adopt Rivet's unrelated schema.
             tables = {r[0] for r in db.execute("SELECT name FROM sqlite_master WHERE type='table'")}
-            if tables - {"messages", "models", "flags"}:
+            if tables - {"messages", "models", "flags", "locks"}:
                 raise ValueError("Use a fresh discord-agent history database")
             db.execute("PRAGMA journal_mode=WAL")
             db.executescript("""
@@ -42,6 +43,8 @@ class History:
                 CREATE TABLE IF NOT EXISTS flags (
                     guild INTEGER NOT NULL, channel INTEGER NOT NULL, flag TEXT NOT NULL,
                     PRIMARY KEY(guild,channel,flag));
+                CREATE TABLE IF NOT EXISTS locks (
+                    guild INTEGER PRIMARY KEY, channel INTEGER NOT NULL);
             """)
 
         await self._run(create)
@@ -116,6 +119,29 @@ class History:
         )
         await self._run(lambda db: db.execute(query, (guild, channel, flag)))
         self._flags.pop((guild, channel), None)
+
+    async def lock(self, guild: int) -> int | None:
+        """The one channel the bot is restricted to in a server, if any; cached like flags."""
+        if guild not in self._locks:
+            row = await self._run(
+                lambda db: db.execute(
+                    "SELECT channel FROM locks WHERE guild=?", (guild,)
+                ).fetchone()
+            )
+            self._locks[guild] = row[0] if row else None
+        return self._locks[guild]
+
+    async def set_lock(self, guild: int, channel: int | None):
+        if channel is None:
+            await self._run(lambda db: db.execute("DELETE FROM locks WHERE guild=?", (guild,)))
+        else:
+            await self._run(
+                lambda db: db.execute(
+                    "INSERT INTO locks VALUES(?,?) ON CONFLICT(guild) DO UPDATE SET channel=excluded.channel",
+                    (guild, channel),
+                )
+            )
+        self._locks.pop(guild, None)
 
     async def clear(self, guild: int, channel: int):
         await self._run(

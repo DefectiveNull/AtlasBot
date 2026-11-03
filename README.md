@@ -49,7 +49,11 @@ with Rivet's database. Start with a fresh volume, never a copy of Rivet's data.
 - `/models` lists every model returned by Bifrost's `/models` API, cached for
   five minutes. `/model` selects one per channel. Both long and short model IDs
   work; Discord autocomplete shows up to 25 matching IDs.
-- Every slash command requires Manage Server or the configured bot owner.
+- Every slash command requires Manage Server or the configured bot owner. Commands
+  are also registered with Manage Server as their default permission, so Discord
+  hides them from other members; server admins can grant access per user or role
+  under Server Settings → Integrations (needed for `BOT_ADMIN_IDS` or
+  `BOT_OWNER_ID` users without Manage Server). The bot still checks every call.
 - `/nocontext`, `/nowebhooks` and `/short` are per-channel switches, all off by
   default. Each takes an optional
   `enabled` true/false and toggles without it. `/nocontext` stops keeping and
@@ -57,6 +61,12 @@ with Rivet's database. Start with a fresh volume, never a copy of Rivet's data.
   `/nowebhooks` stops webhooks and other apps triggering replies; their
   messages still count as context. `/short` asks for at most two short
   paragraphs. Switches are stored in the history database.
+- `/lock channel` restricts Atlas in that server to one channel, given by its
+  ID (a pasted `#channel` mention also works). Outside it Atlas neither replies
+  nor keeps messages as context, and locking clears the `CONTEXT.md` of the
+  server's other channels; slash commands still work in every enabled
+  channel. `/lock` alone shows the lock and `/unlock` removes it. The lock is
+  stored in the history database.
 - `/admin user` records the server admin running
   the bot in `HOST_PATH` (default `/data/HOST.md`), one line per server with
   the user's id, display name, who set it and when. `/admin` alone shows it. The

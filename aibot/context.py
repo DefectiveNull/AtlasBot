@@ -103,6 +103,17 @@ class ChannelContext:
     async def clear(self, guild: int, channel: int):
         await self._edit(guild, channel, lambda entries: entries.clear())
 
+    async def clear_others(self, guild: int, channel: int):
+        """Clear every channel file in a server except one, for a channel lock."""
+        paths = await asyncio.to_thread(lambda: list(self.directory.glob(f"{guild}/*/CONTEXT.md")))
+        for path in paths:
+            try:
+                other = int(path.parent.name)
+            except ValueError:
+                continue
+            if other != channel:
+                await self.clear(guild, other)
+
     async def sweep(self):
         """Prune expired entries in every channel file, removing empty ones."""
         for path in await asyncio.to_thread(lambda: list(self.directory.glob("*/*/CONTEXT.md"))):
