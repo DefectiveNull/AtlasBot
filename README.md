@@ -22,6 +22,12 @@ with Rivet's database. Start with a fresh volume, never a copy of Rivet's data.
   it is sent to the model only if `CATCHUP_MESSAGES` is set above its default 0,
   in which case up to that many recent non-bot messages (8,000 characters at
   most) accompany each reply.
+- Each person's message and catch-up line reaches the model with a header
+  built from Discord's records, `⟦speaker id=… name="…"⟧`, and the system
+  prompt says only that id identifies someone. `⟦` and `⟧` are replaced with
+  `[` and `]` in all user-controlled text (messages, display names, catch-up,
+  media descriptions, tool results) and in the stored reply, so the header
+  cannot be forged. `aibot/PERSONA.md` names trusted people by id only.
 - `/models` lists every model returned by Bifrost's `/models` API, cached for
   five minutes. `/model` selects one per channel. Both long and short model IDs
   work; Discord autocomplete shows up to 25 matching IDs.
