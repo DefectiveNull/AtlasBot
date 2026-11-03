@@ -1,16 +1,18 @@
-# Atlas (discord-agent)
+# Atlas
 
-Private community bot at `git.srvlab.io/whiskey.works/discord-agent`, based on
-`whiskey/aibot@899f8cb0c533a5e42bcc3e45f04eff5ef42a548c`. The repository is
-published with protected main and Actions disabled. Atlas runs as one bounded
-replica on LKE, with separate history and credentials from the source repository.
+Atlas is a Discord community bot, published at
+[github.com/DefectiveNull/AtlasBot](https://github.com/DefectiveNull/AtlasBot).
+It is a fork of AIBot (MIT, by runbgp),
+based on `whiskey/aibot@899f8cb0c533a5e42bcc3e45f04eff5ef42a548c`, and was
+first developed privately as `whiskey.works/discord-agent` before moving here.
 
 This fork keeps Discord mention/prefix text replies, bounded inference
 concurrency, per-channel model selection, and isolated SQLite history. It
-removes the infrastructure-specific integrations and their executable code.
+removes AIBot's infrastructure-specific integrations and their executable code.
 The inference concurrency gateway is retained from AIBot; the smaller runtime,
-history schema, and command surface are new. This is not drop-in compatible
-with Rivet's database. Start with a fresh volume, never a copy of Rivet's data.
+history schema, and command surface are new. The history schema is not
+compatible with AIBot's, and an existing AIBot database is rejected at startup,
+so start with a fresh volume.
 
 ## Behavior
 
@@ -75,25 +77,16 @@ Files (the model list is a text attachment) in approved channels. Add Send
 Messages in Threads only if threads are enabled. No Administrator, member,
 presence, voice, moderation, webhook, or role-management privileges are needed.
 
-`API_BASE` points directly to the owner's Bifrost OpenAI-compatible endpoint.
-A limited key is mounted from a Kubernetes Secret; it is currently shared with
-Rivet, so their quota is shared. There is no separate inference proxy service.
-All models visible to that key are offered. The default model is configurable.
+`API_BASE` is any OpenAI-compatible endpoint (Atlas currently uses a Bifrost
+gateway) and `API_KEY` its key. Every model its `/models` list returns is
+offered; `MODEL` sets the default.
 
-## Delivery
+## Deployment
 
-The owner-controlled delivery configuration lives separately from this fork.
-There is intentionally no privileged publishing workflow here. Member edits,
-including workflow edits, cannot authorize production promotion. A PR to protected
-`main` is an input to the external build/scan controller; only its trusted
-passing verdict for the exact image digest can update deployment.
-Keep Gitea Actions disabled on this application repository, so adding a workflow
-cannot claim the organization's existing trusted runner. The external controller
-polls open PRs every five minutes, evaluating at most one per run.
-
-The Dockerfile requires `PYTHON_BASE` to be supplied as a pinned image digest.
-It installs hash-verified runtime requirements and runs UID/GID 10001. The
-deployment supplies a writable `/data`, read-only root, and restricted network.
+`docker build .` uses `python:3.13-slim` by default; for production, pin it with
+`--build-arg PYTHON_BASE=python:3.13-slim@sha256:…`. The image installs
+hash-verified runtime requirements and runs as UID/GID 10001. The deployment
+supplies a writable `/data` and the configuration as environment variables.
 
 ## Limitations and rollout checks
 
@@ -108,44 +101,32 @@ backup credentials outside this container. Model changes persist; incompatible
 schema changes require a separate migration/restore decision, not just an
 image rollback. Do not expose this bot to another tenant's state.
 
-## Contributions and release boundary
+## Contributing
 
-This private repository preserves AIBot ancestry; it is not registered as a
-public Gitea fork. Submit ordinary code changes as PRs to protected `main`. The
-owner-controlled service runs the sanity scan and automated review,
-then automatically merges and deploys the exact approved image digest. Ordinary
-code does not require routine human review. CI, build, deployment and security
-control changes require current owner approval. A failed or inconclusive gate
-holds the change; it never substitutes a warning for release authorization.
-
-Gitea Actions remain disabled on this repository. Do not enable them or add
-production credentials here: existing organization runners have host access.
-Required status names alone are not proof of a trusted result; the external
-merger must verify evidence identity and current PR/base/image/policy hashes.
-The separate owner Flux repository controls namespace, egress, secrets, storage
-and deployment policy. Contributor access never includes those controls.
+Open pull requests against `main` on GitHub. Before pushing, run
+`uv run --frozen ruff check .`, `uv run --frozen ruff format --check .` and
+`uv run --frozen pytest`. This repository is public: never commit bot tokens,
+API keys or other credentials.
 
 ## Discord identity
 
 Bot name: **Atlas**. Application ID: `1557107805977059368`. Startup verifies that
 the configured token belongs to this application before registering commands.
 The default trigger is `atlas` (mentions also work), and the default prompt names
-Atlas. Repository name remains `whiskey.works/discord-agent`.
+Atlas.
 
 The supplied interactions public key is not a bot token and is not needed here.
 The outbound Discord gateway handles
 commands/events, so this implementation needs no interactions HTTP endpoint,
 public ingress or request-signature key configuration. No bot token is present.
 
-The owner installed the bot token directly into a protected Kubernetes Secret.
-Credentials never belong in chat, Git, or contributor build jobs. Discord and
-Bifrost use direct outbound TLS with restricted runtime egress; no separate
-Discord proxy or private CA is required.
+Keep the bot token in the deployment's secret store; credentials never belong
+in chat or Git. Discord and the model endpoint use direct outbound TLS; no
+separate Discord proxy or private CA is required.
 
 Atlas runtime administrators are explicitly configured by numeric `BOT_ADMIN_IDS`:
-Ian `338456610294988800` (verified existing Rivet owner configuration) and Null
+Ian `338456610294988800` and Null
 `187259462782943233` (user supplied). When set, this exact set controls `/model`
-and `/clear`; Manage Server alone does not add other bot administrators. This
-runtime permission grants no CI, repository-security, secret or deployment
-control. The legacy single owner/Manage Server fallback applies only when the
+and `/clear`; Manage Server alone does not add other bot administrators.
+The legacy single owner/Manage Server fallback applies only when the
 explicit set is empty.
