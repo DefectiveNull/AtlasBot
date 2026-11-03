@@ -16,7 +16,7 @@ monolithic Rivet runtime was replaced with a smaller runtime rather than
 leaving disabled privileged paths behind. Retained AIBot's cancellation-safe
 priority inference gateway and its tests; preserved LICENSE byte-for-byte.
 
-New runtime has guild/channel allowlists, no DMs/passive ingestion/bot replies,
+New runtime has guild/channel allowlists, no DMs, rate-limited webhook/app triggers, opt-in bounded CONTEXT.md ingestion,
 bounded pending work and generation deadlines, per-channel serialized replies,
 no allowed mentions, SQLite history and model preference persistence, logical
 retention cleanup, minimal probe endpoints, explicit Discord proxy support,

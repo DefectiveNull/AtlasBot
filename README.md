@@ -15,13 +15,31 @@ with Rivet's database. Start with a fresh volume, never a copy of Rivet's data.
 ## Behavior
 
 - Guilds must be explicitly listed in `GUILD_IDS`; optionally restrict exact
-  channel/thread IDs with `CHANNEL_IDS`. DMs and messages from bots are ignored.
+  channel/thread IDs with `CHANNEL_IDS`. DMs and the bot's own messages are ignored.
 - Only text messages mentioning the bot, replying to one of its messages,
   starting with `BOT_PREFIX`, or containing `BOT_NAME` as a whole word trigger
   replies. Attachments are not ingested. Untriggered conversation is not stored;
   it is sent to the model only if `CATCHUP_MESSAGES` is set above its default 0,
-  in which case up to that many recent non-bot messages (8,000 characters at
+  in which case up to that many recent messages other than its own (8,000 characters at
   most) accompany each reply.
+- `CONTEXT_ENABLED=true` instead keeps untriggered messages other than its own in a
+  per-channel `CONTEXT_DIR/<guild>/<channel>/CONTEXT.md`. The next reply in that
+  channel sends them to the model and then drops them; otherwise they expire
+  after `CONTEXT_MINUTES` (default 120). Each file holds at most
+  `CONTEXT_MESSAGES` entries (50) and `CONTEXT_CHARS` characters (8,000), each
+  entry at most 500 characters, keeping the newest. Messages deleted on Discord
+  are removed, `/clear` empties the channel's file, and expired entries are
+  swept every 10 minutes. Edits are not tracked. It replaces catch-up when on.
+- Webhooks and other apps (bots, integrations) trigger replies like people do,
+  unless `AUTOMATED_TRIGGERS=false`. To stop two bots looping, they get at most 5
+  replies per channel per 10 minutes and never receive error replies. Their text
+  includes embed titles, descriptions and fields, and their header carries
+  `kind=webhook` or `kind=app`.
+- When a trigger replies to another message (not one of the bot's own) in the
+  same channel, that message and its images (with `IMAGE_INPUT`) are quoted in
+  the request as `[replying to ⟦speaker …⟧ text]`, up to 4,000 characters. If it
+  is still in `CONTEXT.md` it is left out of the context block and dropped with
+  the rest after the reply.
 - Each person's message and catch-up line reaches the model with a header
   built from Discord's records, `⟦speaker id=… name="…"⟧`, and the system
   prompt says only that id identifies someone. `⟦` and `⟧` are replaced with
@@ -31,7 +49,18 @@ with Rivet's database. Start with a fresh volume, never a copy of Rivet's data.
 - `/models` lists every model returned by Bifrost's `/models` API, cached for
   five minutes. `/model` selects one per channel. Both long and short model IDs
   work; Discord autocomplete shows up to 25 matching IDs.
-- `/model` and `/clear` require Manage Server or the configured bot owner.
+- Every slash command requires Manage Server or the configured bot owner.
+- `/nocontext`, `/nowebhooks` and `/short` are per-channel switches, all off by
+  default. Each takes an optional
+  `enabled` true/false and toggles without it. `/nocontext` stops keeping and
+  sending recent channel messages and clears the channel's `CONTEXT.md`.
+  `/nowebhooks` stops webhooks and other apps triggering replies; their
+  messages still count as context. `/short` asks for at most two short
+  paragraphs. Switches are stored in the history database.
+- `/admin user` records the server admin running
+  the bot in `HOST_PATH` (default `/data/HOST.md`), one line per server with
+  the user's id, display name, who set it and when. `/admin` alone shows it. The
+  host is added to the system prompt by id, like the speaker header.
 - Only successful bot exchanges are stored. History is bounded by message
   count, character count, and retention; default retention is 30 days.
 - Research tools are off unless `RESEARCH_ENABLED=true`. Then the model may

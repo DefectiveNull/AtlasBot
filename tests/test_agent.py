@@ -6,7 +6,15 @@ from unittest.mock import AsyncMock
 
 import pytest
 
-from aibot.bot import Agent, administrator, allowed, chunks, speaker, triggered, untrusted
+from aibot.bot import (
+    Agent,
+    administrator,
+    allowed,
+    chunks,
+    speaker,
+    triggered,
+    untrusted,
+)
 from aibot.config import Config
 from aibot.history import History
 from aibot.models import ModelCatalog
@@ -119,7 +127,16 @@ async def test_models_use_supported_discovery_and_fail_closed():
 
 async def test_runtime_surface_and_no_passive_ingestion(config):
     async with Agent(config) as bot:
-        assert {c.name for c in bot.tree.get_commands()} == {"models", "model", "clear"}
+        assert {c.name for c in bot.tree.get_commands()} == {
+            "models",
+            "model",
+            "clear",
+            "admin",
+            "nocontext",
+            "nowebhooks",
+            "short",
+        }
+        await bot.history.initialize()
         assert not bot.intents.dm_messages
         assert not bot.intents.members
         assert not bot.intents.presences
@@ -128,7 +145,10 @@ async def test_runtime_surface_and_no_passive_ingestion(config):
         bot.history.exchange = AsyncMock()
         bot._connection.user = NS(id=7)
         message = NS(
-            author=NS(bot=False), guild=NS(id=1), channel=NS(id=2), content="ordinary conversation"
+            author=NS(bot=False, id=5),
+            guild=NS(id=1),
+            channel=NS(id=2),
+            content="ordinary conversation",
         )
         await bot.on_message(message)
         bot.history.exchange.assert_not_called()
@@ -137,12 +157,13 @@ async def test_runtime_surface_and_no_passive_ingestion(config):
 
 async def test_reply_to_bot_triggers(config):
     async with Agent(config) as bot:
+        await bot.history.initialize()
         bot._connection.user = NS(id=7)
         bot._reply = AsyncMock()
 
         def reply_to(author_id):
             return NS(
-                author=NS(bot=False),
+                author=NS(bot=False, id=5),
                 guild=NS(id=1),
                 channel=NS(id=2),
                 content="  why though  ",
@@ -179,6 +200,7 @@ async def test_catchup_is_opt_in_bounded_and_not_stored(config):
     async with Agent(config) as bot:
         assert await bot._recent(msg) == []
     async with Agent(replace(config, catchup_messages=10)) as bot:
+        bot._connection.user = NS(id=7)
         await bot.history.initialize()
         [recent] = await bot._recent(msg)
         assert recent["content"].splitlines()[1:] == [

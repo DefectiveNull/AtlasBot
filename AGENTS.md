@@ -8,8 +8,10 @@ broker, Hindsight, Studio, media, voice, or object-storage integrations. The
 opt-in research tools in `aibot/research.py` (Brave search, public page/PDF
 reading, YouTube transcripts) and inline image input are the only
 model-reachable network paths beyond the gateway; keep them bounded,
-public-address-only and off by default. DMs and passive ingestion are
-intentionally absent. Infrastructure credentials and delivery policy belong in
+public-address-only and off by default. DMs are intentionally absent. The only
+passive ingestion is the opt-in, off-by-default `CONTEXT.md` buffer in
+`aibot/context.py`; keep it bounded by age, count and size, consumed once, and
+honoring Discord deletes. Infrastructure credentials and delivery policy belong in
 a separate owner-controlled repository.
 
 Models come from Bifrost's OpenAI-compatible model-list endpoint; do not use

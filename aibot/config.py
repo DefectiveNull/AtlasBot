@@ -59,6 +59,7 @@ class Config:
     name: str = "Atlas"
     prompt: str = PERSONA
     db_path: str = "/data/history.sqlite3"
+    host_path: str = "/data/HOST.md"
     max_concurrency: int = 4
     max_pending: int = 32
     reply_timeout: float = 120
@@ -68,6 +69,14 @@ class Config:
     max_output_tokens: int = 2048
     # Recent untriggered channel messages sent as context; 0 disables catch-up.
     catchup_messages: int = 0
+    # Webhooks and other apps can trigger replies, rate-limited per channel.
+    automated_triggers: bool = True
+    # Opt-in per-channel CONTEXT.md of untriggered messages, used once then dropped.
+    context_enabled: bool = False
+    context_dir: str = "/data/context"
+    context_minutes: int = 120
+    context_messages: int = 50
+    context_chars: int = 8000
     # Opt-in model tools (read_url; web_search when a Brave key is set) and image input.
     research_enabled: bool = False
     brave_api_key: str = field(default="", repr=False)
@@ -107,6 +116,12 @@ class Config:
             raise ValueError("Output or prompt limit out of bounds")
         if not 0 <= self.catchup_messages <= 50 or len(self.name) > 32:
             raise ValueError("CATCHUP_MESSAGES or BOT_NAME out of bounds")
+        if (
+            not 5 <= self.context_minutes <= 1440
+            or not 1 <= self.context_messages <= 200
+            or not 1000 <= self.context_chars <= 50000
+        ):
+            raise ValueError("CONTEXT_MINUTES, CONTEXT_MESSAGES or CONTEXT_CHARS out of bounds")
         if self.web_proxy and urlsplit(self.web_proxy).scheme not in {"http", "https"}:
             raise ValueError("WEB_PROXY_URL must be an HTTP(S) proxy URL")
 
@@ -135,6 +150,7 @@ class Config:
             name=env.get("BOT_NAME", cls.name),
             prompt=env.get("PROMPT", cls.prompt),
             db_path=env.get("DB_PATH", cls.db_path),
+            host_path=env.get("HOST_PATH", cls.host_path),
             max_concurrency=int(env.get("LLM_MAX_CONCURRENCY", 4)),
             max_pending=int(env.get("MAX_PENDING", 32)),
             reply_timeout=float(env.get("REPLY_TIMEOUT", 120)),
@@ -143,6 +159,12 @@ class Config:
             retention_days=int(env.get("RETENTION_DAYS", 30)),
             max_output_tokens=int(env.get("MAX_OUTPUT_TOKENS", 2048)),
             catchup_messages=int(env.get("CATCHUP_MESSAGES", 0)),
+            automated_triggers=flag(env.get("AUTOMATED_TRIGGERS", "true")),
+            context_enabled=flag(env.get("CONTEXT_ENABLED", "")),
+            context_dir=env.get("CONTEXT_DIR", cls.context_dir),
+            context_minutes=int(env.get("CONTEXT_MINUTES", cls.context_minutes)),
+            context_messages=int(env.get("CONTEXT_MESSAGES", cls.context_messages)),
+            context_chars=int(env.get("CONTEXT_CHARS", cls.context_chars)),
             research_enabled=flag(env.get("RESEARCH_ENABLED", "")),
             brave_api_key=env.get("BRAVE_SEARCH_API_KEY", ""),
             web_proxy=env.get("WEB_PROXY_URL") or None,
