@@ -1,5 +1,5 @@
-# Release controller must supply its owner-approved immutable base digest.
-ARG PYTHON_BASE
+# Pin a digest for production: --build-arg PYTHON_BASE=python:3.13-slim@sha256:...
+ARG PYTHON_BASE=python:3.13-slim
 FROM ${PYTHON_BASE}
 ENV PYTHONUNBUFFERED=1 PYTHONDONTWRITEBYTECODE=1
 WORKDIR /app
