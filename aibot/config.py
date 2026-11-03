@@ -73,6 +73,8 @@ class Config:
     brave_api_key: str = field(default="", repr=False)
     web_proxy: str | None = None
     image_input: bool = False
+    # A multimodal model that describes images, video, audio and profile pictures as text.
+    media_model: str = ""
 
     def __post_init__(self):
         url = urlsplit(self.api_base)
@@ -147,4 +149,5 @@ class Config:
             brave_api_key=env.get("BRAVE_SEARCH_API_KEY", ""),
             web_proxy=env.get("WEB_PROXY_URL") or None,
             image_input=flag(env.get("IMAGE_INPUT", "")),
+            media_model=env.get("MEDIA_MODEL", ""),
         )

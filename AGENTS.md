@@ -4,13 +4,15 @@ This is the community fork of AIBot. Preserve LICENSE.
 
 The network clients are Discord, an owner-managed Bifrost gateway and, when
 enabled, the research tools below. Do not restore Rivet's MCP, operator API,
-broker, Hindsight, Studio, media, voice, or object-storage integrations. The
-opt-in research tools in `aibot/research.py` (Brave search, public page/PDF
-reading, YouTube transcripts) and inline image input are the only
-model-reachable network paths beyond the gateway; keep them bounded,
-public-address-only and off by default. DMs and passive ingestion are
-intentionally absent. Infrastructure credentials and delivery policy belong in
-a separate owner-controlled repository.
+broker, Hindsight, Studio, media-generation, voice, or object-storage
+integrations. The opt-in research tools in `aibot/research.py` (Brave search,
+public page/PDF reading, YouTube transcripts) are the only model-reachable
+network paths beyond the gateway and Discord. Image input and `aibot/media.py`
+(MEDIA_MODEL descriptions of attachments and profile pictures) download only
+from Discord and decode audio/video locally. Keep all of them bounded and off
+by default, and research fetches public-address-only. DMs and passive ingestion
+are intentionally absent. Infrastructure credentials and delivery policy belong
+in a separate owner-controlled repository.
 
 Models come from Bifrost's OpenAI-compatible model-list endpoint; do not use
 management APIs, direct provider credentials, or a hard-coded model allowlist.

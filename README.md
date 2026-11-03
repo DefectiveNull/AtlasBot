@@ -40,6 +40,17 @@ with Rivet's database. Start with a fresh volume, never a copy of Rivet's data.
 - `IMAGE_INPUT=true` sends up to 4 PNG/JPEG/WebP/GIF attachments (5 MB each),
   downloaded through Discord, to the model inline. A model that rejects images
   gets one retry with text only.
+- `MEDIA_MODEL` (empty = off) names a multimodal model from discovery that turns
+  media into text for the chat model; it replaces `IMAGE_INPUT`'s inline path
+  and must be discoverable at startup. It covers up to 4 image, video and
+  audio/voice-message attachments (25 MB each) on the triggering message and
+  the message it replies to. Video becomes 6 frames plus its audio track and
+  audio becomes 16 kHz WAV, from the first 180 seconds, decoded locally with
+  PyAV; a model that rejects video audio gets frames only. A voice message
+  replying to the bot triggers it. The `view_profile_picture` tool shows the
+  avatar of the asker, users they mention, the replied-to author or the bot.
+  Media is downloaded through Discord only; descriptions are stored with the
+  exchange, never the media.
 - No other tool execution, passive/lurk replies, DMs, voice, operator routes,
   or external memory are present.
 - `/livez` and `/readyz` on port 8080 return status only, for cluster probes.
