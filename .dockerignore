@@ -1,0 +1,7 @@
+**
+!aibot/
+!aibot/**
+!aibot.py
+!requirements.txt
+!LICENSE
+!Dockerfile
